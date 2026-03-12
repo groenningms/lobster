@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Medicinpriser</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 2rem;
+      letter-spacing: -0.5px;
+    }
+
+    .search-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    #query {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #query:focus { border-color: #0070f3; }
+
+    #suggestions {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,.1);
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+
+    #suggestions li {
+      padding: 0.6rem 1rem;
+      cursor: pointer;
+      list-style: none;
+      font-size: 0.95rem;
+    }
+
+    #suggestions li:hover,
+    #suggestions li.active { background: #f0f7ff; }
+
+    #status { margin-top: 1rem; font-size: 0.85rem; color: #666; min-height: 1.2em; }
+
+    #results {
+      width: 100%;
+      max-width: 900px;
+      margin-top: 2rem;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      font-size: 0.9rem;
+    }
+
+    thead th {
+      background: #0070f3;
+      color: #fff;
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    tbody tr:nth-child(even) { background: #f9f9f9; }
+    tbody tr:hover { background: #eef6ff; }
+    tbody td { padding: 0.6rem 1rem; }
+
+    .badge {
+      display: inline-block;
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-radius: 4px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Medicinpriser</h1>
+
+<div class="search-wrapper">
+  <input id="query" type="text" placeholder="Skriv virksomt stof, fx paracetamol…" autocomplete="off" />
+  <ul id="suggestions"></ul>
+</div>
+<div id="status"></div>
+<div id="results"></div>
+
+<script>
+  // ── Curated list of active substances (virksomtstoffer) ──
+  const SUBSTANCES = [
+    'acetylsalicylsyre','allopurinol','alprazolam','amilorid','amlodipin',
+    'amoxicillin','ampicillin','apixaban','atenolol','atomoxetin',
+    'atorvastatin','azithromycin','azathioprin','beclomethason','bendroflumethiazid',
+    'bisoprolol','budesonid','buprenorfin','candesartan','carvedilol',
+    'cetirizin','ciclosporin','citalopram','ciprofloxacin','clarithromycin',
+    'clonazepam','clopidogrel','codein','dabigatran','dexamethason',
+    'desloratadin','diazepam','donepezil','doxycyclin','duloxetin',
+    'edoxaban','empagliflozin','enalapril','escitalopram','esomeprazol',
+    'fenobarbital','fentanyl','fexofenadin','fluoxetin','formoterol',
+    'furosemid','glipizid','hydrochlorthiazid','hydrocortison','hydroxychloroquin',
+    'hydroxyzin','ibuprofen','ibandroninsyre','insulin','ipratropium',
+    'irbesartan','karbamazepin','ketamin','lamotrigin','lansoprazol',
+    'levetiracetam','levothyroxin','liraglutid','lisinopril','lisdexamfetamin',
+    'lithium','loratadin','losartan','lovastatin','lorazepam',
+    'memantine','metformin','methotrexat','metoprolol','methylphenidat',
+    'methylprednisolon','metronidazol','mirtazapin','morfin','nifedipin',
+    'olmesartan','omeprazol','oksycodon','pantoprazol','paracetamol',
+    'paroxetin','penicillin','perindopril','pramipexol','prasugrel',
+    'prednisolon','propranolol','propylthiouracil','rabeprazol','ramipril',
+    'risedroninsyre','rivaroxaban','rivastigmin','ropinirol','rosuvastatin',
+    'salbutamol','salmeterol','semaglutid','sertralin','simvastatin',
+    'sitagliptin','spironolacton','terbutalin','thiamazol','ticagrelor',
+    'tiotropium','topiramat','tramadol','trimethoprim','valproat',
+    'valsartan','venlafaxin','warfarin','zolpidem','levodopa',
+    'alendronsyre','azithromycin','cefuroxim','levofloxacin'
+  ].sort();
+
+  const input      = document.getElementById('query');
+  const list       = document.getElementById('suggestions');
+  const status     = document.getElementById('status');
+  const resultsDiv = document.getElementById('results');
+
+  let activeIndex = -1;
+  let debounceTimer;
+
+  // ── Autocomplete logic ──
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(updateSuggestions, 120);
+  });
+
+  function updateSuggestions() {
+    const q = input.value.trim().toLowerCase();
+    list.innerHTML = '';
+    activeIndex = -1;
+
+    if (!q) { list.style.display = 'none'; return; }
+
+    const matches = SUBSTANCES.filter(s => s.startsWith(q)).slice(0, 10);
+
+    if (!matches.length) { list.style.display = 'none'; return; }
+
+    matches.forEach(s => {
+      const li = document.createElement('li');
+      // Bold the matching prefix
+      li.innerHTML = `<strong>${s.slice(0, q.length)}</strong>${s.slice(q.length)}`;
+      li.addEventListener('mousedown', () => selectSubstance(s));
+      list.appendChild(li);
+    });
+
+    list.style.display = 'block';
+  }
+
+  // Keyboard navigation
+  input.addEventListener('keydown', e => {
+    const items = list.querySelectorAll('li');
+    if (!items.length) {
+      if (e.key === 'Enter') search(input.value.trim());
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, items.length - 1);
+      highlight(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      highlight(items);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIndex >= 0) {
+        selectSubstance(items[activeIndex].textContent);
+      } else {
+        selectSubstance(input.value.trim());
+      }
+    } else if (e.key === 'Escape') {
+      list.style.display = 'none';
+    }
+  });
+
+  function highlight(items) {
+    items.forEach((li, i) => li.classList.toggle('active', i === activeIndex));
+    if (activeIndex >= 0) items[activeIndex].scrollIntoView({ block: 'nearest' });
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-wrapper')) list.style.display = 'none';
+  });
+
+  function selectSubstance(name) {
+    input.value = name;
+    list.style.display = 'none';
+    search(name);
+  }
+
+  // ── Search & display ──
+  async function search(q) {
+    if (!q) return;
+    status.textContent = 'Søger…';
+    resultsDiv.innerHTML = '';
+
+    try {
+      const res  = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+
+      if (!Array.isArray(data) || !data.length) {
+        status.textContent = 'Ingen resultater.';
+        return;
+      }
+
+      status.textContent = `${data.length} produkt${data.length !== 1 ? 'er' : ''} fundet for "${q}"`;
+
+      const table = document.createElement('table');
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Navn</th>
+            <th>Firma</th>
+            <th>Styrke</th>
+            <th>Pakning</th>
+          </tr>
+        </thead>
+      `;
+      const tbody = document.createElement('tbody');
+      data.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.Navn}</td>
+          <td>${p.Firma}</td>
+          <td><span class="badge">${p.Styrke}</span></td>
+          <td>${p.Pakning}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      resultsDiv.appendChild(table);
+    } catch (err) {
+      status.textContent = `Fejl: ${err.message}`;
+    }
+  }
+</script>
+
+</body>
+</html>
