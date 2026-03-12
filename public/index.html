@@ -108,6 +108,16 @@
       font-size: 0.8rem;
       font-weight: 600;
     }
+
+    .badge-green {
+      background: #e6f4ea;
+      color: #1e8e3e;
+    }
+
+    .badge-grey {
+      background: #f1f3f4;
+      color: #666;
+    }
   </style>
 </head>
 <body>
@@ -254,17 +264,27 @@
             <th>Firma</th>
             <th>Styrke</th>
             <th>Pakning</th>
+            <th>Pris (pakke)</th>
+            <th>Tilskud</th>
           </tr>
         </thead>
       `;
       const tbody = document.createElement('tbody');
       data.forEach(p => {
+        const price = p.PrisPrPakning != null
+          ? `${p.PrisPrPakning.toFixed(2)} kr`
+          : '–';
+        const reimbursement = p.TilskudKode
+          ? `<span class="badge badge-green" title="${p.TilskudTekst || ''}">✓ ${p.TilskudKode}</span>`
+          : `<span class="badge badge-grey">Ingen</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${p.Navn}</td>
           <td>${p.Firma}</td>
           <td><span class="badge">${p.Styrke}</span></td>
           <td>${p.Pakning}</td>
+          <td>${price}</td>
+          <td>${reimbursement}</td>
         `;
         tbody.appendChild(tr);
       });
