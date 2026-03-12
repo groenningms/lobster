@@ -5,7 +5,7 @@ A simple web app for searching Danish medicine prices by active substance (virks
 ## Features
 
 - Autocomplete search field – start typing an active substance (e.g. *paracetamol*) and get instant suggestions
-- Results table showing product name, company, strength, and packaging
+- Results table showing product name, company, strength, packaging, price per package, and reimbursement status
 - Express proxy server to avoid CORS issues with the upstream API
 
 ## Requirements
@@ -42,4 +42,12 @@ The app proxies requests to:
 GET /api/search?q=<substance>
 ```
 
-which calls `http://api.medicinpriser.dk/v1/produkter/virksomtstof/<substance>?format=json` and returns the JSON response.
+which calls `http://api.medicinpriser.dk/v1/produkter/virksomtstof/<substance>?format=json` to get the product list, then enriches each result with price and reimbursement data from the details endpoint (`/v1/produkter/detaljer/<varenummer>`) fetched in parallel.
+
+Each product in the response includes:
+
+| Field | Description |
+|---|---|
+| `PrisPrPakning` | Price per package (DKK) |
+| `TilskudKode` | Reimbursement code (empty if none) |
+| `TilskudTekst` | Reimbursement description |
