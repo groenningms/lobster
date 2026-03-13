@@ -136,6 +136,36 @@ const CHAT_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'query_price_history',
+      description: 'Query and rank all products stored in the local price history database. Use this to answer questions like "what is the most expensive drug?", "what are the cheapest medicines?", or "which products cost more than X kr?". Only covers products that have been looked up before in this session — not an exhaustive list of all Danish medicines.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sort: {
+            type: 'string',
+            enum: ['price_desc', 'price_asc'],
+            description: 'Sort order: price_desc for most expensive first, price_asc for cheapest first.',
+          },
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of results to return. Default 10.',
+          },
+          min_price: {
+            type: 'number',
+            description: 'Optional: only return products with latest price above this value (DKK).',
+          },
+          max_price: {
+            type: 'number',
+            description: 'Optional: only return products with latest price below this value (DKK).',
+          },
+        },
+        required: ['sort'],
+      },
+    },
+  },
 ];
 
 function getPriceHistoryForSubstance(substance) {
@@ -143,6 +173,19 @@ function getPriceHistoryForSubstance(substance) {
   return Object.entries(priceHistory)
     .filter(([, d]) => d.name.toLowerCase().includes(q))
     .map(([varenummer, d]) => ({ varenummer, name: d.name, entries: d.entries }));
+}
+
+function queryPriceHistory({ sort, limit = 10, min_price, max_price }) {
+  const rows = Object.entries(priceHistory)
+    .map(([varenummer, d]) => {
+      const latest = d.entries.at(-1);
+      return { varenummer, name: d.name, latestDate: latest?.date, latestPrice: latest?.price ?? null };
+    })
+    .filter(r => r.latestPrice !== null)
+    .filter(r => min_price === undefined || r.latestPrice >= min_price)
+    .filter(r => max_price === undefined || r.latestPrice <= max_price);
+  rows.sort((a, b) => sort === 'price_asc' ? a.latestPrice - b.latestPrice : b.latestPrice - a.latestPrice);
+  return rows.slice(0, limit);
 }
 
 const SYSTEM_PROMPT = `Du er en assistent til den danske medicin-prisdatabase (medicinpriser.dk).
@@ -154,6 +197,10 @@ Al prisinformation SKAL komme fra API-kaldet. Dagens dato bruges automatisk af A
 
 Hvis brugeren spørger om prisudvikling eller sammenligning over tid, brug get_price_history-værktøjet.
 Hvis der ikke er historiske data for den ønskede periode, fortæl brugeren det tydeligt.
+
+Hvis brugeren spørger om det dyreste, billigste eller sammenligner priser på tværs af lægemidler (uden at nævne et specifikt stof),
+brug query_price_history-værktøjet. VIGTIGT: databasen indeholder kun lægemidler der tidligere er blevet slået op – det er ikke
+en udtømmende liste over alle danske lægemidler. Oplys altid brugeren om denne begrænsning i svaret.
 
 Hvis brugeren stiller et generelt spørgsmål der ikke handler om et specifikt lægemiddel, kan du svare uden at kalde værktøjet.
 Svar på det sprog brugeren skriver på. Vær kortfattet. Brug danske kroner (kr) ved priser.`;
@@ -209,13 +256,16 @@ app.post('/api/chat', async (req, res) => {
       // Execute all tool calls (possibly in parallel)
       const toolResults = await Promise.all(toolCallList.map(async tc => {
         try {
-          const { substance } = JSON.parse(tc.arguments);
+          const args = JSON.parse(tc.arguments);
           if (tc.name === 'lookup_drug_prices') {
-            const drugData = await searchDrug(substance);
+            const drugData = await searchDrug(args.substance);
             return { id: tc.id, content: JSON.stringify(drugData) };
           } else if (tc.name === 'get_price_history') {
-            const history = getPriceHistoryForSubstance(substance);
+            const history = getPriceHistoryForSubstance(args.substance);
             return { id: tc.id, content: JSON.stringify(history) };
+          } else if (tc.name === 'query_price_history') {
+            const results = queryPriceHistory(args);
+            return { id: tc.id, content: JSON.stringify(results) };
           }
           return { id: tc.id, content: JSON.stringify({ error: 'Unknown tool' }) };
         } catch (e) {
