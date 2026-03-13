@@ -85,16 +85,21 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding-bottom: 3rem;
-    }
-    .landing-title {
-      font-size: 2rem;
-      font-weight: 700;
-      color: var(--text);
-      text-align: center;
-      letter-spacing: -0.01em;
+      padding-bottom: 0;
     }
     .app.has-messages .landing { display: none; }
+
+    /* On landing, move the input area into the vertical centre */
+    .app:not(.has-messages) .input-area {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      max-width: 780px;
+      padding: 0 1.5rem;
+      border-top: none !important;
+    }
 
     .msg {
       display: flex;
@@ -259,6 +264,25 @@
     #modalBody { min-height: 120px; }
     .no-history { color: var(--text-muted); text-align: center; padding: 2rem 1rem; font-size: 0.92rem; line-height: 1.7; }
 
+    /* ── Placeholder cycling ── */
+    @keyframes placeholderFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes placeholderFadeOut { from { opacity: 1; } to { opacity: 0; } }
+    #fakePlaceholder {
+      position: absolute;
+      top: 0.95rem;
+      left: 1rem;
+      right: 3.5rem;
+      pointer-events: none;
+      font-size: 1rem;
+      font-family: inherit;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #fakePlaceholder.fade-in  { animation: placeholderFadeIn  0.6s ease forwards; }
+    #fakePlaceholder.fade-out { animation: placeholderFadeOut 0.4s ease forwards; }
+
     /* ── Typewriter ── */
     @keyframes fadeIn {
       from { opacity: 0; }
@@ -271,9 +295,7 @@
 
 <div class="app" id="app">
   <div class="header"><span class="header-dot"></span>Medicinpriser</div>
-  <div class="landing">
-    <h1 class="landing-title">Hvad kan jeg hjælpe med?</h1>
-  </div>
+  <div class="landing"></div>
   <div class="messages" id="messages">
     <div id="thinkingIndicator" role="status" aria-live="polite">
       <div class="pill-spinner"></div>
@@ -282,7 +304,8 @@
   </div>
   <div class="input-area">
     <div class="input-wrap">
-      <textarea id="userInput" rows="1" placeholder="Spørg om et lægemiddel…"></textarea>
+      <span id="fakePlaceholder" aria-hidden="true"></span>
+      <textarea id="userInput" rows="1" placeholder=""></textarea>
       <button id="sendBtn" aria-label="Send">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M8 13V3M3 8l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -308,9 +331,52 @@
   const sendBtn    = document.getElementById('sendBtn');
   const history    = [];  // conversation history sent to backend
 
+  // ── Cycling placeholder ─────────────────────────────────────────────────────
+  const PLACEHOLDERS = [
+    'Hvad koster Panodil 500 mg?',
+    'Er der tilskud til metformin?',
+    'Sammenlign prisen på ibuprofen fra oktober til januar',
+    'Hvilke pakningsstørrelser findes der for Voltaren?',
+    'Hvad er det billigste paracetamol produkt?',
+    'Har Cipralex generiske alternativer?',
+    'Hvad koster Triplixam om måneden?',
+    'Er Ozempic på tilskud?',
+  ];
+  const fakePh = document.getElementById('fakePlaceholder');
+  let phIndex = 0;
+  let phTimer = null;
+
+  function showPlaceholder() {
+    if (input.value || document.getElementById('app').classList.contains('has-messages')) {
+      fakePh.style.display = 'none';
+      return;
+    }
+    fakePh.style.display = '';
+    fakePh.textContent = PLACEHOLDERS[phIndex];
+    fakePh.className = 'fade-in';
+    phTimer = setTimeout(() => {
+      fakePh.className = 'fade-out';
+      setTimeout(() => {
+        phIndex = (phIndex + 1) % PLACEHOLDERS.length;
+        showPlaceholder();
+      }, 450);
+    }, 3000);
+  }
+
+  // Hide fake placeholder while user types
+  input.addEventListener('focus',  () => { fakePh.style.display = 'none'; });
+  input.addEventListener('blur',   () => { if (!input.value) { clearTimeout(phTimer); showPlaceholder(); } });
+  input.addEventListener('input',  () => { fakePh.style.display = input.value ? 'none' : ''; });
+
+  showPlaceholder();
+
   // ── Render helpers ──────────────────────────────────────────────────────────
   function addMessage(role, content, drugData = null, isError = false) {
-    if (role === 'user') document.getElementById('app').classList.add('has-messages');
+    if (role === 'user') {
+      document.getElementById('app').classList.add('has-messages');
+      clearTimeout(phTimer);
+      fakePh.style.display = 'none';
+    }
     const wrap = document.createElement('div');
     wrap.className = `msg ${role}${isError ? ' error' : ''}`;
     const bubble = document.createElement('div');
