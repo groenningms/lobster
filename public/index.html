@@ -193,6 +193,9 @@
     .badge-green { background: #EAF3EC; color: #2E6B40; }
     .badge-grey  { background: #EDEAE4; color: var(--text-muted); }
 
+    .product-link { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); }
+    .product-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
     .btn-history {
       background: none; border: 1px solid var(--border);
       border-radius: 6px; padding: 0.15rem 0.35rem;
@@ -418,9 +421,10 @@
       const reimbursement = p.TilskudKode
         ? `<span class="badge badge-green" title="${p.TilskudTekst || ''}">&#x2713; ${p.TilskudKode}</span>`
         : `<span class="badge badge-grey">Ingen</span>`;
+      const productUrl = `https://www.medicinpriser.dk/Default.aspx?id=15&vnr=${p.Varenummer}`;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${p.Navn}</td><td>${p.Firma}</td>
+        <td><a href="${productUrl}" target="_blank" rel="noopener" class="product-link">${p.Navn}</a></td><td>${p.Firma}</td>
         <td><span class="badge">${p.Styrke}</span></td>
         <td>${p.Pakning}</td><td>${price}</td><td>${reimbursement}</td>
         <td><button class="btn-history" title="Vis prishistorik">📈</button></td>`;

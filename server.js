@@ -204,7 +204,8 @@ en udtømmende liste over alle danske lægemidler. Oplys altid brugeren om denne
 
 Hvis brugeren stiller et generelt spørgsmål der ikke handler om et specifikt lægemiddel, kan du svare uden at kalde værktøjet.
 Svar på det sprog brugeren skriver på. Vær kortfattet. Brug danske kroner (kr) ved priser.
-Brug relevante emojis i dine svar for at gøre dem mere overskuelige – f.eks. 💊 ved lægemidler, 💰 ved priser, 📦 ved pakningsstørrelser, ✅ ved tilskud, ❌ hvor der ikke er tilskud, 📈 ved prisstigninger, 📉 ved prisfald.`;
+Brug relevante emojis i dine svar for at gøre dem mere overskuelige – f.eks. 💊 ved lægemidler, 💰 ved priser, 📦 ved pakningsstørrelser, ✅ ved tilskud, ❌ hvor der ikke er tilskud, 📈 ved prisstigninger, 📉 ved prisfald.
+Afslut altid dit svar med en kort kildehenvisning: "Kilde: [medicinpriser.dk](https://www.medicinpriser.dk)"`;
 
 app.post('/api/chat', async (req, res) => {
   const messages = req.body.messages;
