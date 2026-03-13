@@ -3,298 +3,516 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Medicinpriser</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Söhne:wght@400;500&family=Tiempos+Text:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg:        #F2EDE3;
+      --surface:   #EDE8DD;
+      --border:    #D9D3C7;
+      --text:      #1A1714;
+      --text-muted:#6B665E;
+      --accent:    #CC785C;
+      --accent-dk: #B5623A;
+      --user-bg:   #2D2B27;
+      --user-text: #F5F0E8;
+    }
+
     body {
-      font-family: system-ui, sans-serif;
-      background: #f5f5f5;
-      color: #1a1a1a;
-      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 3rem 1rem;
     }
 
-    h1 {
-      font-size: 1.6rem;
-      margin-bottom: 2rem;
-      letter-spacing: -0.5px;
-    }
-
-    .search-wrapper {
-      position: relative;
+    .app {
+      display: flex;
+      flex-direction: column;
       width: 100%;
-      max-width: 480px;
+      max-width: 780px;
+      height: 100dvh;
     }
 
-    #query {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      font-size: 1rem;
-      border: 2px solid #ccc;
-      border-radius: 8px;
-      outline: none;
-      transition: border-color 0.2s;
+    /* ── Header ── */
+    .header {
+      background: transparent;
+      color: var(--text);
+      padding: 1.1rem 1.5rem 0.8rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+    }
+    .header-dot {
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
     }
 
-    #query:focus { border-color: #0070f3; }
-
-    #suggestions {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 0;
-      right: 0;
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,.1);
-      max-height: 280px;
+    /* ── Messages ── */
+    .messages {
+      flex: 1;
       overflow-y: auto;
-      z-index: 100;
+      padding: 2rem 1.5rem;
       display: none;
+      flex-direction: column;
+      gap: 1.5rem;
     }
+    .app.has-messages .messages { display: flex; }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-    #suggestions li {
-      padding: 0.6rem 1rem;
-      cursor: pointer;
-      list-style: none;
+    /* ── Landing ── */
+    .landing {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding-bottom: 3rem;
+    }
+    .landing-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      text-align: center;
+      letter-spacing: -0.01em;
+    }
+    .app.has-messages .landing { display: none; }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      max-width: 78%;
+    }
+    .msg.user      { align-self: flex-end;   align-items: flex-end; }
+    .msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .bubble {
+      padding: 0.75rem 1.1rem;
+      border-radius: 18px;
+      line-height: 1.6;
       font-size: 0.95rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.user .bubble {
+      background: var(--user-bg);
+      color: var(--user-text);
+      border-bottom-right-radius: 5px;
+    }
+    .msg.assistant .bubble {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 5px;
+      color: var(--text);
+    }
+    .msg.assistant.error .bubble {
+      background: #FDF3F0;
+      border-color: #E8B4A0;
+      color: #7A2E1A;
     }
 
-    #suggestions li:hover,
-    #suggestions li.active { background: #f0f7ff; }
-
-    #status { margin-top: 1rem; font-size: 0.85rem; color: #666; min-height: 1.2em; }
-
-    #results {
-      width: 100%;
-      max-width: 900px;
-      margin-top: 2rem;
-      overflow-x: auto;
+    /* spinning pill */
+    #thinkingIndicator {
+      display: none;
+      align-items: center;
+      gap: 0.55rem;
+      background: #1C1C1C;
+      border-radius: 999px;
+      padding: 0.5rem 1.1rem 0.5rem 0.75rem;
+      font-size: 0.88rem;
+      color: #E8E3DA;
+      font-weight: 500;
+      white-space: nowrap;
+      width: fit-content;
+      /* positioned like an assistant message */
+      align-self: flex-start;
+      margin: 0;
     }
+    #thinkingIndicator.visible { display: inline-flex; }
+    #thinkingIndicator .pill-spinner {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: #CC785C;
+      flex-shrink: 0;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Drug table ── */
+    .drug-table-wrap { margin-top: 0.75rem; overflow-x: auto; max-width: 720px; }
     table {
-      width: 100%;
       border-collapse: collapse;
       background: #fff;
       border-radius: 10px;
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,.07);
-      font-size: 0.9rem;
+      border: 1px solid var(--border);
+      font-size: 0.84rem;
+      min-width: 520px;
     }
-
     thead th {
-      background: #0070f3;
-      color: #fff;
-      padding: 0.7rem 1rem;
+      background: var(--surface);
+      color: var(--text-muted);
+      padding: 0.55rem 0.9rem;
       text-align: left;
-      font-weight: 600;
+      font-weight: 500;
+      font-size: 0.78rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
       white-space: nowrap;
+      border-bottom: 1px solid var(--border);
     }
+    tbody tr:nth-child(even) { background: #FDFCFA; }
+    tbody tr:hover { background: #FBF8F4; }
+    tbody td { padding: 0.5rem 0.9rem; border-bottom: 1px solid #F0ECE5; color: var(--text); }
 
-    tbody tr:nth-child(even) { background: #f9f9f9; }
-    tbody tr:hover { background: #eef6ff; }
-    tbody td { padding: 0.6rem 1rem; }
+    .badge       { display: inline-block; background: #EDE8DD; color: var(--text-muted); border-radius: 4px; padding: 0.1rem 0.45rem; font-size: 0.77rem; font-weight: 500; }
+    .badge-green { background: #EAF3EC; color: #2E6B40; }
+    .badge-grey  { background: #EDEAE4; color: var(--text-muted); }
 
-    .badge {
-      display: inline-block;
-      background: #e8f0fe;
-      color: #1a73e8;
-      border-radius: 4px;
-      padding: 0.15rem 0.45rem;
-      font-size: 0.8rem;
-      font-weight: 600;
+    .btn-history {
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; padding: 0.15rem 0.35rem;
+      cursor: pointer; font-size: 0.84rem; color: var(--text-muted);
+      transition: border-color 0.15s, color 0.15s;
     }
+    .btn-history:hover { border-color: var(--accent); color: var(--accent); }
 
-    .badge-green {
-      background: #e6f4ea;
-      color: #1e8e3e;
+    /* ── Input bar ── */
+    .input-area {
+      flex-shrink: 0;
+      padding: 0.75rem 1.5rem 1.5rem;
+      background: var(--bg);
     }
+    .app.has-messages .input-area {
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+    }
+    .input-wrap {
+      position: relative;
+      background: #1C1C1C;
+      border-radius: 20px;
+      padding: 0.9rem 1rem 3rem 1rem;
+    }
+    #userInput {
+      width: 100%; resize: none;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #E8E3DA;
+      font-size: 1rem; font-family: inherit;
+      max-height: 140px; line-height: 1.5;
+    }
+    #userInput::placeholder { color: #666; }
+    #sendBtn {
+      position: absolute;
+      bottom: 0.65rem; right: 0.65rem;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: #4A4A4A;
+      border: none; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #sendBtn:hover:not(:disabled) { background: #666; }
+    #sendBtn:disabled { background: #2A2A2A; color: #3A3A3A; cursor: default; }
 
-    .badge-grey {
-      background: #f1f3f4;
-      color: #666;
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(26,23,20,.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
     }
+    .modal-box {
+      background: #fff; border-radius: 14px;
+      padding: 1.75rem; width: 90%; max-width: 620px;
+      border: 1px solid var(--border);
+      box-shadow: 0 16px 48px rgba(0,0,0,.15);
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1.3rem;
+    }
+    .modal-header h2 { font-size: 1rem; font-weight: 500; color: var(--text); }
+    .modal-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); }
+    .modal-close:hover { color: var(--text); }
+    #modalBody { min-height: 120px; }
+    .no-history { color: var(--text-muted); text-align: center; padding: 2rem 1rem; font-size: 0.92rem; line-height: 1.7; }
+
+    /* ── Typewriter ── */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .char { display: inline; animation: fadeIn 0.1s ease forwards; }
   </style>
 </head>
 <body>
 
-<h1>Medicinpriser</h1>
-
-<div class="search-wrapper">
-  <input id="query" type="text" placeholder="Skriv virksomt stof, fx paracetamol…" autocomplete="off" />
-  <ul id="suggestions"></ul>
+<div class="app" id="app">
+  <div class="header"><span class="header-dot"></span>Medicinpriser</div>
+  <div class="landing">
+    <h1 class="landing-title">Hvad kan jeg hjælpe med?</h1>
+  </div>
+  <div class="messages" id="messages">
+    <div id="thinkingIndicator" role="status" aria-live="polite">
+      <div class="pill-spinner"></div>
+      <span id="thinkingLabel">Tænker</span>
+    </div>
+  </div>
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea id="userInput" rows="1" placeholder="Spørg om et lægemiddel…"></textarea>
+      <button id="sendBtn" aria-label="Send">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 13V3M3 8l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
 </div>
-<div id="status"></div>
-<div id="results"></div>
+
+<div id="historyModal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modalTitle">Prishistorik</h2>
+      <button class="modal-close" id="modalClose" aria-label="Luk">&#x2715;</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
 
 <script>
-  // ── Curated list of active substances (virksomtstoffer) ──
-  const SUBSTANCES = [
-    'acetylsalicylsyre','allopurinol','alprazolam','amilorid','amlodipin',
-    'amoxicillin','ampicillin','apixaban','atenolol','atomoxetin',
-    'atorvastatin','azithromycin','azathioprin','beclomethason','bendroflumethiazid',
-    'bisoprolol','budesonid','buprenorfin','candesartan','carvedilol',
-    'cetirizin','ciclosporin','citalopram','ciprofloxacin','clarithromycin',
-    'clonazepam','clopidogrel','codein','dabigatran','dexamethason',
-    'desloratadin','diazepam','donepezil','doxycyclin','duloxetin',
-    'edoxaban','empagliflozin','enalapril','escitalopram','esomeprazol',
-    'fenobarbital','fentanyl','fexofenadin','fluoxetin','formoterol',
-    'furosemid','glipizid','hydrochlorthiazid','hydrocortison','hydroxychloroquin',
-    'hydroxyzin','ibuprofen','ibandroninsyre','insulin','ipratropium',
-    'irbesartan','karbamazepin','ketamin','lamotrigin','lansoprazol',
-    'levetiracetam','levothyroxin','liraglutid','lisinopril','lisdexamfetamin',
-    'lithium','loratadin','losartan','lovastatin','lorazepam',
-    'memantine','metformin','methotrexat','metoprolol','methylphenidat',
-    'methylprednisolon','metronidazol','mirtazapin','morfin','nifedipin',
-    'olmesartan','omeprazol','oksycodon','pantoprazol','paracetamol',
-    'paroxetin','penicillin','perindopril','pramipexol','prasugrel',
-    'prednisolon','propranolol','propylthiouracil','rabeprazol','ramipril',
-    'risedroninsyre','rivaroxaban','rivastigmin','ropinirol','rosuvastatin',
-    'salbutamol','salmeterol','semaglutid','sertralin','simvastatin',
-    'sitagliptin','spironolacton','terbutalin','thiamazol','ticagrelor',
-    'tiotropium','topiramat','tramadol','trimethoprim','valproat',
-    'valsartan','venlafaxin','warfarin','zolpidem','levodopa',
-    'alendronsyre','azithromycin','cefuroxim','levofloxacin'
-  ].sort();
+  const messagesEl = document.getElementById('messages');
+  const input      = document.getElementById('userInput');
+  const sendBtn    = document.getElementById('sendBtn');
+  const history    = [];  // conversation history sent to backend
 
-  const input      = document.getElementById('query');
-  const list       = document.getElementById('suggestions');
-  const status     = document.getElementById('status');
-  const resultsDiv = document.getElementById('results');
+  // ── Render helpers ──────────────────────────────────────────────────────────
+  function addMessage(role, content, drugData = null, isError = false) {
+    if (role === 'user') document.getElementById('app').classList.add('has-messages');
+    const wrap = document.createElement('div');
+    wrap.className = `msg ${role}${isError ? ' error' : ''}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = content;
+    wrap.appendChild(bubble);
+    if (drugData?.length > 0) wrap.appendChild(buildDrugTable(drugData));
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return wrap;
+  }
 
-  let activeIndex = -1;
-  let debounceTimer;
+  function addTyping() {
+    const indicator = document.getElementById('thinkingIndicator');
+    indicator.classList.add('visible');
+    const label = document.getElementById('thinkingLabel');
+    label.textContent = 'Tænker';
+    let dots = 0;
+    indicator._dotInterval = setInterval(() => {
+      dots = (dots + 1) % 4;
+      label.textContent = 'Tænker' + '.'.repeat(dots);
+    }, 400);
+    return indicator;
+  }
 
-  // ── Autocomplete logic ──
-  input.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(updateSuggestions, 120);
-  });
-
-  function updateSuggestions() {
-    const q = input.value.trim().toLowerCase();
-    list.innerHTML = '';
-    activeIndex = -1;
-
-    if (!q) { list.style.display = 'none'; return; }
-
-    const matches = SUBSTANCES.filter(s => s.startsWith(q)).slice(0, 10);
-
-    if (!matches.length) { list.style.display = 'none'; return; }
-
-    matches.forEach(s => {
-      const li = document.createElement('li');
-      // Bold the matching prefix
-      li.innerHTML = `<strong>${s.slice(0, q.length)}</strong>${s.slice(q.length)}`;
-      li.addEventListener('mousedown', () => selectSubstance(s));
-      list.appendChild(li);
+  function buildDrugTable(data) {
+    const wrap = document.createElement('div');
+    wrap.className = 'drug-table-wrap';
+    const table = document.createElement('table');
+    table.innerHTML = `<thead><tr>
+      <th>Navn</th><th>Firma</th><th>Styrke</th>
+      <th>Pakning</th><th>Pris (pakke)</th><th>Tilskud</th><th>Historik</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    data.forEach(p => {
+      const price = p.PrisPrPakning != null ? `${p.PrisPrPakning.toFixed(2)} kr` : '–';
+      const reimbursement = p.TilskudKode
+        ? `<span class="badge badge-green" title="${p.TilskudTekst || ''}">&#x2713; ${p.TilskudKode}</span>`
+        : `<span class="badge badge-grey">Ingen</span>`;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${p.Navn}</td><td>${p.Firma}</td>
+        <td><span class="badge">${p.Styrke}</span></td>
+        <td>${p.Pakning}</td><td>${price}</td><td>${reimbursement}</td>
+        <td><button class="btn-history" title="Vis prishistorik">📈</button></td>`;
+      tr.querySelector('.btn-history').addEventListener('click', () => showHistory(p.Varenummer, p.Navn));
+      tbody.appendChild(tr);
     });
-
-    list.style.display = 'block';
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return wrap;
   }
 
-  // Keyboard navigation
+  // ── Auto-resize textarea ────────────────────────────────────────────────────
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+  });
+
   input.addEventListener('keydown', e => {
-    const items = list.querySelectorAll('li');
-    if (!items.length) {
-      if (e.key === 'Enter') search(input.value.trim());
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      activeIndex = Math.min(activeIndex + 1, items.length - 1);
-      highlight(items);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      activeIndex = Math.max(activeIndex - 1, 0);
-      highlight(items);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (activeIndex >= 0) {
-        selectSubstance(items[activeIndex].textContent);
-      } else {
-        selectSubstance(input.value.trim());
-      }
-    } else if (e.key === 'Escape') {
-      list.style.display = 'none';
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
+  sendBtn.addEventListener('click', send);
 
-  function highlight(items) {
-    items.forEach((li, i) => li.classList.toggle('active', i === activeIndex));
-    if (activeIndex >= 0) items[activeIndex].scrollIntoView({ block: 'nearest' });
-  }
+  // ── Send message ────────────────────────────────────────────────────────────
+  async function send() {
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
 
-  document.addEventListener('click', e => {
-    if (!e.target.closest('.search-wrapper')) list.style.display = 'none';
-  });
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
 
-  function selectSubstance(name) {
-    input.value = name;
-    list.style.display = 'none';
-    search(name);
-  }
+    addMessage('user', text);
+    history.push({ role: 'user', content: text });
 
-  // ── Search & display ──
-  async function search(q) {
-    if (!q) return;
-    status.textContent = 'Søger…';
-    resultsDiv.innerHTML = '';
+    const typing = addTyping();
 
     try {
-      const res  = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history }),
+      });
 
-      if (!Array.isArray(data) || !data.length) {
-        status.textContent = 'Ingen resultater.';
-        return;
+      if (typing._dotInterval) clearInterval(typing._dotInterval);
+      typing.classList.remove('visible');
+
+      const msgWrap = addMessage('assistant', '');
+      const bubble  = msgWrap.querySelector('.bubble');
+      bubble.textContent = ''; // clear placeholder
+
+      let fullText = '';
+      // Queue of characters waiting to be typed out
+      let charQueue = [];
+      let typing2 = false;
+
+      function drip() {
+        if (!charQueue.length) { typing2 = false; return; }
+        typing2 = true;
+        const ch = charQueue.shift();
+        fullText += ch;
+        const span = document.createElement('span');
+        span.className = 'char';
+        span.textContent = ch;
+        bubble.appendChild(span);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        // 6ms ≈ 165 chars/sec — fast typewriter
+        setTimeout(drip, 6);
       }
 
-      status.textContent = `${data.length} produkt${data.length !== 1 ? 'er' : ''} fundet for "${q}"`;
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer    = '';
+      let fullResponse = '';
 
-      const table = document.createElement('table');
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th>Navn</th>
-            <th>Firma</th>
-            <th>Styrke</th>
-            <th>Pakning</th>
-            <th>Pris (pakke)</th>
-            <th>Tilskud</th>
-          </tr>
-        </thead>
-      `;
-      const tbody = document.createElement('tbody');
-      data.forEach(p => {
-        const price = p.PrisPrPakning != null
-          ? `${p.PrisPrPakning.toFixed(2)} kr`
-          : '–';
-        const reimbursement = p.TilskudKode
-          ? `<span class="badge badge-green" title="${p.TilskudTekst || ''}">✓ ${p.TilskudKode}</span>`
-          : `<span class="badge badge-grey">Ingen</span>`;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${p.Navn}</td>
-          <td>${p.Firma}</td>
-          <td><span class="badge">${p.Styrke}</span></td>
-          <td>${p.Pakning}</td>
-          <td>${price}</td>
-          <td>${reimbursement}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      resultsDiv.appendChild(table);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const obj = JSON.parse(line.slice(6));
+          if (obj.type === 'delta') {
+            fullResponse += obj.text;
+            const clean = obj.text.replace(/\*\*/g, '');
+            charQueue.push(...clean);
+            if (!typing2) drip();
+          } else if (obj.type === 'error') {
+            charQueue = [];
+            bubble.textContent = `⚠️ ${obj.message}`;
+            msgWrap.classList.add('error');
+          } else if (obj.type === 'done') {
+            // Wait for the drip queue to finish before recording history
+            const wait = () => charQueue.length || typing2
+              ? setTimeout(wait, 50)
+              : history.push({ role: 'assistant', content: fullResponse });
+            wait();
+          }
+        }
+      }
     } catch (err) {
-      status.textContent = `Fejl: ${err.message}`;
+      const ind = document.getElementById('thinkingIndicator');
+      if (ind._dotInterval) clearInterval(ind._dotInterval);
+      ind.classList.remove('visible');
+      addMessage('assistant', `Netværksfejl: ${err.message}`, null, true);
+    }
+
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  // ── Price history modal ─────────────────────────────────────────────────────
+  let chartInstance = null;
+
+  async function showHistory(varenummer, name) {
+    const modal = document.getElementById('historyModal');
+    const title = document.getElementById('modalTitle');
+    const body  = document.getElementById('modalBody');
+    title.textContent = `Prishistorik – ${name}`;
+    body.innerHTML = '<p class="no-history">Indlæser…</p>';
+    modal.style.display = 'flex';
+
+    try {
+      const res  = await fetch(`/api/history/${encodeURIComponent(varenummer)}`);
+      const data = await res.json();
+      if (!data.entries?.length) {
+        body.innerHTML = '<p class="no-history">Ingen historiske data endnu.<br>Data gemmes automatisk ved hvert opslag.</p>';
+        return;
+      }
+      body.innerHTML = '<canvas id="historyChart"></canvas>';
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(document.getElementById('historyChart').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: data.entries.map(e => e.date),
+          datasets: [{ label: 'Pris (kr)', data: data.entries.map(e => e.price),
+            borderColor: '#0070f3', backgroundColor: 'rgba(0,112,243,.08)',
+            tension: 0.3, pointRadius: 5, fill: true }]
+        },
+        options: {
+          responsive: true, plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: false, title: { display: true, text: 'DKK' } } }
+        }
+      });
+    } catch (err) {
+      body.innerHTML = `<p style="color:red;text-align:center;padding:1rem">Fejl: ${err.message}</p>`;
     }
   }
-</script>
 
+  document.getElementById('modalClose').addEventListener('click', () => {
+    document.getElementById('historyModal').style.display = 'none';
+  });
+  document.getElementById('historyModal').addEventListener('click', e => {
+    if (e.target.id === 'historyModal') document.getElementById('historyModal').style.display = 'none';
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.getElementById('historyModal').style.display = 'none';
+  });
+
+</script>
 </body>
 </html>
